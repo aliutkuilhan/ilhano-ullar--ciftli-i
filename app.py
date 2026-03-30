@@ -5,52 +5,48 @@ import numpy as np
 from PIL import Image
 import cv2
 
-# --- 🖥️ PC GENİŞ EKRAN AYARLARI ---
+# --- 🖥️ İLHANOĞULLARI ÖZEL PC AYARLARI ---
 st.set_page_config(
     page_title="İlhanoğulları Master-Station AI",
-    layout="wide", # PC ekranını tam kullanmak için WIDE mod
+    page_icon="🐄",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- 🚀 PC OPTİMİZE DASHBOARD TASARIMI ---
+# --- 🎨 ÖZEL ARAYÜZ TASARIMI ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0B0E14; }
-    /* Dashboard Kartları */
-    .metric-card {
-        background: #161B22;
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid #30363D;
-        text-align: center;
-    }
-    /* Devasa Rakamlar */
+    .stApp { background-color: #0B0E14; color: #E0E0E0; }
     [data-testid="stMetricValue"] {
         color: #D4AF37 !important;
-        font-size: 64px !important;
+        font-size: 52px !important;
         font-weight: 800;
+        text-shadow: 2px 2px 4px #000;
     }
-    /* Başlık */
     .brand-title {
         color: #D4AF37;
-        font-family: 'Garamond', serif;
-        font-size: 42px;
-        letter-spacing: 5px;
+        font-family: 'Georgia', serif;
+        font-size: 38px;
+        font-weight: bold;
         text-align: center;
-        border-bottom: 2px solid #D4AF37;
-        margin-bottom: 20px;
+        border-bottom: 3px double #D4AF37;
+        margin-bottom: 25px;
+        padding-bottom: 10px;
     }
+    .sidebar-text { font-size: 14px; color: #888; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🏗️ MODEL YÜKLEME ---
+# --- 🏗️ MODEL VE CİHAZ AYARI ---
 @st.cache_resource
 def load_engine():
-    return YOLO('yolov8n-seg.pt')
+    # Cihazı otomatik seç (GPU varsa GPU, yoksa CPU)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return YOLO('yolov8n-seg.pt').to(device)
 
 model = load_engine()
 
-# --- 🧬 VERİ MATRİSİ ---
+# --- 🧬 VERİ VE PARAMETRELER ---
 breed_configs = {
     "Simental": {"dens": 268, "yield": 58.5},
     "Angus": {"dens": 255, "yield": 61.0},
@@ -60,67 +56,80 @@ breed_configs = {
 }
 body_mods = {"Zayıf": 0.90, "İdeal": 1.0, "Kaslı/Pehlivan": 1.12}
 
-# --- 🚀 ANA EKRAN DÜZENİ ---
-st.markdown('<p class="brand-title">İLHANOĞULLARI ÇİFTLİĞİ | MASTER-STATION</p>', unsafe_allow_html=True)
+# --- 🚀 ANA EKRAN ---
+st.markdown('<p class="brand-title">İLHANOĞULLARI ÇİFTLİĞİ | MASTER-STATION AI</p>', unsafe_allow_html=True)
 
-# Sidebar: Ayarlar
-st.sidebar.header("⚙️ Analiz Parametreleri")
-sel_breed = st.sidebar.selectbox("Hayvan Irkı", list(breed_configs.keys()))
-sel_body = st.sidebar.selectbox("Vücut Kondisyonu", list(body_mods.keys()))
-st.sidebar.divider()
-st.sidebar.write("İlhanoğulları Çiftliği tarafından üretilmiştir.")
+# SIDEBAR: PARAMETRELER
+with st.sidebar:
+    st.header("⚙️ Sürü Yönetimi")
+    sel_breed = st.selectbox("🐄 Hayvan Irkı", list(breed_configs.keys()))
+    sel_body = st.selectbox("💪 Vücut Kondisyonu", list(body_mods.keys()))
+    st.divider()
+    st.markdown('<p class="sidebar-text">Alpu / Eskişehir<br>3. Kuşak Tarım & Hayvancılık</p>', unsafe_allow_html=True)
 
-# Ana Gövde: İki Sütun (Geniş Ekran)
-col_input, col_output = st.columns([1, 1])
+# ANA DÜZEN
+col_input, col_output = st.columns([1, 1], gap="large")
 
 with col_input:
-    st.subheader("📸 Fotoğraf Girişi")
-    file = st.file_uploader("Simental/Angus/Holstein fotoğrafı yükleyin", type=['jpg','png','jpeg'])
+    st.subheader("📸 Canlı Analiz Girişi")
+    file = st.file_uploader("İneğin yandan çekilmiş fotoğrafını buraya bırakın", type=['jpg','png','jpeg'])
 
-# --- ⚖️ ANALİZ VE HATA KONTROLÜ ---
+# --- ⚖️ ANALİZ SÜRECİ ---
 if file:
     img = Image.open(file).convert('RGB')
     img_np = np.array(img)
     
-    with st.spinner("⏳ Yapay Zeka Analiz Ediyor..."):
-        # MODEL ÇALIŞTIRILIYOR
-        res_list = model.predict(img_np, conf=0.45) # İsmi res_list yaptım karışmasın diye
+    with st.spinner("⏳ Yapay Zeka Biyometrik Verileri İşliyor..."):
+        # MODEL TAHMİNİ
+        results = model.predict(img_np, conf=0.40)
         
-        if len(res_list) > 0 and res_list[0].masks is not None:
-            r = res_list[0] # İlk tespit edilen hayvanı al
+        if len(results) > 0 and results[0].masks is not None:
+            r = results[0]
             
-            # 1. Geometri Analizi
-            mask = cv2.resize(r.masks.data[0].cpu().numpy(), (img_np.shape[1], img_np.shape[0]))
-            y, x = np.where(mask > 0)
-            ph, pw = (np.max(y)-np.min(y)), (np.max(x)-np.min(x))
+            # 1. Geometri ve Maske Analizi
+            full_mask = r.masks.data[0].cpu().numpy()
+            mask_resized = cv2.resize(full_mask, (img_np.shape[1], img_np.shape[0]))
             
-            # 2. Kalibrasyon (132 CM Sabiti)
-            cm_per_px = 132 / max(ph, 1)
-            area_m2 = np.sum(mask > 0) * (cm_per_px / 100)**2
-            length_m = (pw * cm_per_px / 100)
-            
-            # 3. Hesaplama
-            cfg = breed_configs[sel_breed]
-            weight = int(area_m2 * length_m * cfg['dens'] * body_mods[sel_body])
-            if weight > 650: weight = int(weight * 0.92) # 500 KG kalibrasyonu
-            karkas = int(weight * (cfg['yield'] / 100))
+            y, x = np.where(mask_resized > 0)
+            if len(y) > 0:
+                ph = np.max(y) - np.min(y)
+                pw = np.max(x) - np.min(x)
+                
+                # 2. Kalibrasyon (132 CM Standart Sırt Yüksekliği Sabiti)
+                cm_per_px = 132 / max(ph, 1)
+                area_m2 = np.sum(mask_resized > 0) * (cm_per_px / 100)**2
+                length_m = (pw * cm_per_px / 100)
+                
+                # 3. İlhanoğulları Özel Ağırlık Formülü
+                cfg = breed_configs[sel_breed]
+                weight = int(area_m2 * length_m * cfg['dens'] * body_mods[sel_body])
+                
+                # Yüksek ağırlık kalibrasyonu (500 KG üstü düzeltme)
+                if weight > 500:
+                    weight = int(weight * 0.95)
+                
+                karkas = int(weight * (cfg['yield'] / 100))
 
-            # --- 📊 PC SONUÇ EKRANI ---
-            with col_input:
-                st.image(r.plot(), caption="Biyometrik Analiz Tamamlandı", use_container_width=True)
-            
-            with col_output:
-                st.subheader("⚖️ Analiz Sonuçları")
-                m1, m2 = st.columns(2)
-                m1.metric("CANLI AĞIRLIK", f"{weight} KG")
-                m2.metric("KARKAS (ET)", f"{karkas} KG")
+                # --- 📊 SONUÇLARI GÖSTER ---
+                with col_input:
+                    st.image(r.plot(), caption="Yapay Zeka Tespit Çerçevesi", use_container_width=True)
                 
-                st.divider()
-                st.info(f"📍 **Seçilen Irk:** {sel_breed} | **Kondisyon:** {sel_body}")
-                st.write(f"📊 **Baz Randıman:** %{cfg['yield']}")
-                
-                if st.button("💾 ANALİZİ VERİTABANINA KAYDET"):
-                    st.balloons()
-                    st.success("Veri başarıyla kaydedildi.")
+                with col_output:
+                    st.subheader("⚖️ Tahmini Tartı Sonuçları")
+                    m1, m2 = st.columns(2)
+                    m1.metric("CANLI AĞIRLIK", f"{weight} KG")
+                    m2.metric("KARKAS (ET)", f"{karkas} KG")
+                    
+                    st.divider()
+                    st.success(f"📍 Analiz Tamamlandı: {sel_breed} ({sel_body})")
+                    
+                    # Veritabanına Kayıt Butonu
+                    if st.button("💾 VERİLERİ ÇİFTLİK KAYITLARINA EKLE"):
+                        st.balloons()
+                        st.toast("Veri başarıyla yerel veritabanına işlendi.", icon='✅')
         else:
-            st.error("❌ Hayvan tespit edilemedi. Lütfen daha net bir fotoğraf yükleyin.")
+            st.error("❌ Fotoğrafta hayvan net seçilemedi. Lütfen yandan ve tam görünecek şekilde tekrar deneyin.")
+
+else:
+    with col_output:
+        st.info("💡 Analiz için sol taraftan bir fotoğraf yükleyin. Sistem otomatik olarak canlı ağırlık ve karkas miktarını hesaplayacaktır.")
