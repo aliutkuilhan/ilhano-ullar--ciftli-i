@@ -1,3 +1,3 @@
 streamlit
-ultralytics-cpu
+ultralytics
 opencv-python-headless
